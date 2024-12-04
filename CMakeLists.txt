@@ -24,11 +24,15 @@ find_package(pluginlib REQUIRED)
 find_package(rviz_common REQUIRED)
 find_package(rviz_rendering REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(geometry_msgs REQUIRED)
-find_package(Qt5 COMPONENTS Widgets REQUIRED) #Qt5 for creating graphical interfaces (Widgets and Core components).
 find_package(Qt5 REQUIRED COMPONENTS Widgets Core)
 find_package(interactive_markers REQUIRED)
+find_package(interactive_markers REQUIRED)
+find_package(visualization_msgs REQUIRED)
 
 # Automoc and moc((meta objects complier) file generation
 set(CMAKE_AUTOMOC ON)
@@ -44,16 +48,30 @@ target_include_directories(mt_rviz_ui PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
 )
+find_package(interactive_markers REQUIRED)
+
+# target_include_directories(mt_rviz_ui PUBLIC
+#   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+#   $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
+#   $<BUILD_INTERFACE:${interactive_markers_INCLUDE_DIRS}>
+#   /opt/ros/rolling/include
+# )
+
+
 
 # Link dependencies
 ament_target_dependencies(mt_rviz_ui
   rclcpp
+  rclcpp_components
   rviz_common
   rviz_rendering
-  pluginlib
+  pluginlib   
+  tf2
   tf2_ros
+  tf2_geometry_msgs
   geometry_msgs
   interactive_markers
+  visualization_msgs
 )
 
 # Link Qt5
@@ -90,4 +108,5 @@ if(BUILD_TESTING)
 endif()
 
 ament_package()
+
 

@@ -19,10 +19,13 @@
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <tf2_ros/transform_broadcaster.h>
 
-// RViz related includes
+// headers related to the interactive markers used in RViz
 #include <interactive_markers/interactive_marker_server.hpp>
 #include <interactive_markers/menu_handler.hpp>
 #include <rviz_common/visualization_manager.hpp>
+#include <visualization_msgs/msg/interactive_marker.hpp>
+#include <visualization_msgs/msg/interactive_marker_control.hpp>
+#include <visualization_msgs/msg/interactive_marker_feedback.hpp>
 
 // Qt libraries (GUI)
 #include <QVBoxLayout>
@@ -38,8 +41,11 @@ namespace custom_interactive_markers
         : rviz_common::Panel(parent),
           node_(std::make_shared<rclcpp::Node>("mt_rviz_ui_node")),
           tf_broadcaster_(std::make_shared<tf2_ros::TransformBroadcaster>(node_)),
+          //// create an interactive marker server
           interactive_marker_server_(std::make_shared<interactive_markers::InteractiveMarkerServer>("mt_rviz_ui_server", node_))
     {
+
+        RCLCPP_DEBUG(node_->get_logger(), "Initializing MTRvizUI...");
         // Layout to organize UI components
         QVBoxLayout *layout = new QVBoxLayout;
 
@@ -56,7 +62,7 @@ namespace custom_interactive_markers
         parent_frame_input_->setPlaceholderText("Enter parent frame name");
         layout->addWidget(parent_frame_input_);
 
-        // Cylinder dimensions input
+        // Cylinder dimensions input between 0.1 to 10
         QLabel *radius_label = new QLabel("Cylinder Radius:", this);
         layout->addWidget(radius_label);
         radius_input_ = new QDoubleSpinBox(this);
@@ -77,24 +83,27 @@ namespace custom_interactive_markers
         // Set the layout for the panel
         setLayout(layout);
 
-        // Create the interactive markers grid
-        createInteractiveMarkers();
+        // // Create the interactive markers grid
+        // createInteractiveMarkers();
     }
 
     void MTRvizUI::onInitialize()
     {
         rviz_common::Panel::onInitialize();
         RCLCPP_INFO(node_->get_logger(), "MTRvizUI plugin initialized.");
+        createInteractiveMarkers();
     }
 
     void MTRvizUI::createInteractiveMarkers()
     {
+        RCLCPP_DEBUG(node_->get_logger(), "Creating interactive markers...");
         for (int i = 0; i < 5; ++i)
         {
             for (int j = 0; j < 10; ++j)
             {
                 // Unique marker name
                 std::string marker_name = "box_" + std::to_string(i) + "_" + std::to_string(j);
+                RCLCPP_DEBUG(node_->get_logger(), "Creating marker: %s", marker_name.c_str());
 
                 // Interactive marker
                 visualization_msgs::msg::InteractiveMarker int_marker;
@@ -108,7 +117,7 @@ namespace custom_interactive_markers
                 // Control for small box
                 visualization_msgs::msg::InteractiveMarkerControl control;
                 control.name = "small_box";
-                control.interaction_mode = visualization_msgs::msg::InteractiveMarkerControl::BUTTON;
+                control.interaction_mode = visualization_msgs::msg::InteractiveMarkerControl::MOVE_3D;
                 control.always_visible = true;
 
                 // Create a small box marker
@@ -127,12 +136,41 @@ namespace custom_interactive_markers
                 int_marker.controls.push_back(control);
 
                 // Insert the marker into the server
+                RCLCPP_INFO(node_->get_logger(), "Inserting marker: %s", marker_name.c_str());
                 interactive_marker_server_->insert(int_marker);
             }
         }
 
         // Apply changes to the interactive marker server
+        RCLCPP_INFO(node_->get_logger(), "Marker inserted, applying changes...");
         interactive_marker_server_->applyChanges();
+        RCLCPP_INFO(node_->get_logger(), "Interactive markers created and applied.");
+
+        // Subscribe to the feedback topic
+        feedback_subscription_ = node_->create_subscription<visualization_msgs::msg::InteractiveMarkerFeedback>(
+            "/mt_rviz_ui_server/feedback", 10, std::bind(&MTRvizUI::processFeedback, this, std::placeholders::_1));
+        RCLCPP_INFO(node_->get_logger(), "Feedback subscription created: /mt_rviz_ui_server/feedback");
+    }
+
+    void MTRvizUI::processFeedback(const visualization_msgs::msg::InteractiveMarkerFeedback::SharedPtr feedback)
+    {
+        RCLCPP_INFO(node_->get_logger(), "Received feedback for marker: %s", feedback->marker_name.c_str());
+
+        // Print feedback details for debugging
+        RCLCPP_INFO(node_->get_logger(), "Interaction type: %d", feedback->event_type);
+        RCLCPP_INFO(node_->get_logger(), "Marker position: (%f, %f, %f)",
+                    feedback->pose.position.x, feedback->pose.position.y, feedback->pose.position.z);
+
+        geometry_msgs::msg::TransformStamped transform;
+        transform.header.stamp = node_->now();
+        transform.header.frame_id = "world"; // Parent frame
+        transform.child_frame_id = feedback->marker_name;
+        transform.transform.translation.x = feedback->pose.position.x;
+        transform.transform.translation.y = feedback->pose.position.y;
+        transform.transform.translation.z = feedback->pose.position.z;
+        transform.transform.rotation = feedback->pose.orientation;
+
+        tf_broadcaster_->sendTransform(transform);
     }
 
     void MTRvizUI::publishFrame()
@@ -148,7 +186,7 @@ namespace custom_interactive_markers
             QMessageBox::warning(this, "Input Error", "Frame name or parent frame cannot be empty.");
             return;
         }
-
+        RCLCPP_DEBUG(node_->get_logger(), "Publishing frame: %s under parent: %s", frame_name.c_str(), parent_frame.c_str());
         // Publish the transformation between the frames
         geometry_msgs::msg::TransformStamped transform;
         transform.header.stamp = node_->now();
@@ -167,6 +205,7 @@ namespace custom_interactive_markers
                     frame_name.c_str(), parent_frame.c_str());
 
         // Add cylinders as interactive markers
+        RCLCPP_INFO(node_->get_logger(), "Adding cylinders to interactive markers.");
         addCylinders();
     }
     void MTRvizUI::addCylinders()
@@ -178,8 +217,10 @@ namespace custom_interactive_markers
         if (radius <= 0.0 || height <= 0.0)
         {
             QMessageBox::warning(this, "Invalid Input", "Radius and Height must be positive values.");
+            RCLCPP_ERROR(node_->get_logger(), "Invalid radius or height: radius=%.2f, height=%.2f", radius, height);
             return;
         }
+        RCLCPP_INFO(node_->get_logger(), "Adding cylinders with radius=%.2f and height=%.2f", radius, height);
 
         // Loop through the grid and replace boxes with cylinders
         for (int i = 0; i < 5; ++i)
@@ -187,7 +228,8 @@ namespace custom_interactive_markers
             for (int j = 0; j < 10; ++j)
             {
                 // Unique marker name
-                std::string marker_name = "box_" + std::to_string(i) + "_" + std::to_string(j);
+                std::string marker_name = "cylinder_" + std::to_string(i) + "_" + std::to_string(j);
+                RCLCPP_DEBUG(node_->get_logger(), "Replacing marker: %s with cylinder.", marker_name.c_str());
 
                 // Create a new interactive marker
                 visualization_msgs::msg::InteractiveMarker int_marker;
@@ -195,32 +237,30 @@ namespace custom_interactive_markers
                 int_marker.name = marker_name;
                 int_marker.pose.position.x = i * 2.0;
                 int_marker.pose.position.y = j * 2.0;
-                int_marker.pose.position.z = height / 2.0; // Adjust for cylinder height
+                int_marker.pose.position.z = 0.5;
                 int_marker.scale = 1.0;
+
+                // Create the cylinder marker
+                visualization_msgs::msg::Marker cylinder_marker = createCylinderMarker(radius, height);
 
                 // Add control for the cylinder
                 visualization_msgs::msg::InteractiveMarkerControl control;
-                control.name = "cylinder";
-                control.interaction_mode = visualization_msgs::msg::InteractiveMarkerControl::BUTTON;
+                control.name = "cylinder_control";
+                control.interaction_mode = visualization_msgs::msg::InteractiveMarkerControl::MOVE_3D;
                 control.always_visible = true;
-
-                // Create the cylinder marker
-                visualization_msgs::msg::Marker cylinder_marker;
-                cylinder_marker.type = visualization_msgs::msg::Marker::CYLINDER;
-                cylinder_marker.scale.x = radius * 2.0; // Diameter
-                cylinder_marker.scale.y = radius * 2.0; // Diameter
-                cylinder_marker.scale.z = height;
-                cylinder_marker.color.r = 0.0f;
-                cylinder_marker.color.g = 0.5f;
-                cylinder_marker.color.b = 0.8f;
-                cylinder_marker.color.a = 1.0f;
+                control.markers.push_back(cylinder_marker);
 
                 // Attach the marker to the control
-                control.markers.push_back(cylinder_marker);
                 int_marker.controls.push_back(control);
 
+                // // Remove the old marker if it exists
+                // RCLCPP_INFO(node_->get_logger(), "Inserting marker erased: %s", marker_name.c_str());
+                // interactive_marker_server_->erase(marker_name);
+
                 // Insert the updated interactive marker into the server
+                RCLCPP_INFO(node_->get_logger(), "Inserting cylinder marker: %s", marker_name.c_str());
                 interactive_marker_server_->insert(int_marker);
+                RCLCPP_INFO(node_->get_logger(), "Inserted cylinder marker: %s", int_marker.name.c_str());
 
                 // Broadcast a unique frame for the cylinder
                 geometry_msgs::msg::TransformStamped transform;
@@ -238,9 +278,9 @@ namespace custom_interactive_markers
                 tf_broadcaster_->sendTransform(transform);
             }
         }
-
         // Apply changes to the interactive marker server
         interactive_marker_server_->applyChanges();
+        RCLCPP_INFO(node_->get_logger(), "Cylinders added and server updated.");
     }
 
     visualization_msgs::msg::Marker MTRvizUI::createCylinderMarker(double radius, double height)
@@ -252,15 +292,15 @@ namespace custom_interactive_markers
         cylinder_marker.scale.z = height;
 
         // Set color of the cylinder
-        cylinder_marker.color.r = 0.0f;
+        cylinder_marker.color.r = 1.0f;
         cylinder_marker.color.g = 0.0f;
-        cylinder_marker.color.b = 1.0f;
+        cylinder_marker.color.b = 0.0f;
         cylinder_marker.color.a = 1.0f;
 
         return cylinder_marker;
     }
 
-} // namespace custom_interactive_markers
+}; // namespace custom_interactive_markers
 
 // Register the RViz plugin
 #include <pluginlib/class_list_macros.hpp>
