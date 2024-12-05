@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(custom_interactive_markers LANGUAGES CXX)
+project(rviz_interactive_markers LANGUAGES CXX)
 
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
@@ -37,7 +37,7 @@ find_package(visualization_msgs REQUIRED)
 # Automoc and moc((meta objects complier) file generation
 set(CMAKE_AUTOMOC ON)
 qt5_wrap_cpp(MOC_FILES
-  include/custom_interactive_markers/mt_rviz_ui.hpp
+  include/rviz_interactive_markers/mt_rviz_ui.hpp
 )
 
 # Add the library for the RViz plugin
@@ -48,15 +48,6 @@ target_include_directories(mt_rviz_ui PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
 )
-find_package(interactive_markers REQUIRED)
-
-# target_include_directories(mt_rviz_ui PUBLIC
-#   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-#   $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
-#   $<BUILD_INTERFACE:${interactive_markers_INCLUDE_DIRS}>
-#   /opt/ros/rolling/include
-# )
-
 
 
 # Link dependencies
@@ -79,7 +70,7 @@ target_link_libraries(mt_rviz_ui Qt5::Widgets)
 
 # Install the library and XML files
 install(TARGETS mt_rviz_ui
-  EXPORT export_custom_interactive_markers
+  EXPORT export_rviz_interactive_markers
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
@@ -97,8 +88,7 @@ install(FILES rviz_common_plugins.xml
 
 # Export interfaces and plugin description
 ament_export_include_directories(include)
-ament_export_targets(export_custom_interactive_markers)
-#pluginlib_export_plugin_description_file(rviz_common rviz_common_plugins.xml)
+ament_export_targets(export_rviz_interactive_markers)
 pluginlib_export_plugin_description_file(rviz_common rviz_common_plugins.xml)
 
 # Linting and testing
@@ -108,5 +98,4 @@ if(BUILD_TESTING)
 endif()
 
 ament_package()
-
 
