@@ -114,9 +114,9 @@ namespace custom_interactive_markers
                 int_marker.pose.position.z = 0.5;     // Place boxes on the floor
                 int_marker.scale = 1.0;
 
-                // Control for small box
+                // Control for interaction
                 visualization_msgs::msg::InteractiveMarkerControl control;
-                control.name = "small_box";
+                control.name = "move_control";
                 control.interaction_mode = visualization_msgs::msg::InteractiveMarkerControl::MOVE_3D;
                 control.always_visible = true;
 
@@ -130,10 +130,33 @@ namespace custom_interactive_markers
                 box_marker.color.g = 0.5f;
                 box_marker.color.b = 0.5f;
                 box_marker.color.a = 1.0f;
-                control.markers.push_back(box_marker);
+
+                control.markers.push_back(box_marker); // Add the visual marker to the control
 
                 // Add control to the interactive marker
                 int_marker.controls.push_back(control);
+
+                // from 139 to 159 delete
+                //  Adding a rotation control
+                visualization_msgs::msg::InteractiveMarkerControl rotate_control;
+                rotate_control.name = "rotate_control";
+                rotate_control.interaction_mode = visualization_msgs::msg::InteractiveMarkerControl::ROTATE_3D;
+                rotate_control.always_visible = true;
+
+                // Add markers for the rotation control
+                visualization_msgs::msg::Marker rotate_marker;
+                rotate_marker.type = visualization_msgs::msg::Marker::CUBE;
+                rotate_marker.scale.x = 0.5;
+                rotate_marker.scale.y = 0.5;
+                rotate_marker.scale.z = 0.5;
+                rotate_marker.color.r = 0.0f;
+                rotate_marker.color.g = 1.0f;
+                rotate_marker.color.b = 0.0f;
+                rotate_marker.color.a = 1.0f;
+                rotate_control.markers.push_back(rotate_marker);
+
+                // Add the control to the interactive marker
+                int_marker.controls.push_back(rotate_control);
 
                 // Insert the marker into the server
                 RCLCPP_INFO(node_->get_logger(), "Inserting marker: %s", marker_name.c_str());
@@ -146,7 +169,7 @@ namespace custom_interactive_markers
         interactive_marker_server_->applyChanges();
         RCLCPP_INFO(node_->get_logger(), "Interactive markers created and applied.");
 
-        // Subscribe to the feedback topic
+        // Subscribe to the feedback topic to handle interactions
         feedback_subscription_ = node_->create_subscription<visualization_msgs::msg::InteractiveMarkerFeedback>(
             "/mt_rviz_ui_server/feedback", 10, std::bind(&MTRvizUI::processFeedback, this, std::placeholders::_1));
         RCLCPP_INFO(node_->get_logger(), "Feedback subscription created: /mt_rviz_ui_server/feedback");
@@ -155,15 +178,29 @@ namespace custom_interactive_markers
     void MTRvizUI::processFeedback(const visualization_msgs::msg::InteractiveMarkerFeedback::SharedPtr feedback)
     {
         RCLCPP_INFO(node_->get_logger(), "Received feedback for marker: %s", feedback->marker_name.c_str());
-
-        // Print feedback details for debugging
         RCLCPP_INFO(node_->get_logger(), "Interaction type: %d", feedback->event_type);
         RCLCPP_INFO(node_->get_logger(), "Marker position: (%f, %f, %f)",
                     feedback->pose.position.x, feedback->pose.position.y, feedback->pose.position.z);
 
+        // Handle specific feedback events
+        switch (feedback->event_type)
+        {
+        case visualization_msgs::msg::InteractiveMarkerFeedback::MENU_SELECT:
+            RCLCPP_INFO(node_->get_logger(), "Menu item selected on marker: %s", feedback->marker_name.c_str());
+            break;
+        case visualization_msgs::msg::InteractiveMarkerFeedback::POSE_UPDATE:
+            RCLCPP_INFO(node_->get_logger(), "Marker moved to position: (%f, %f, %f)",
+                        feedback->pose.position.x, feedback->pose.position.y, feedback->pose.position.z);
+            break;
+        default:
+            RCLCPP_INFO(node_->get_logger(), "Other feedback type: %d", feedback->event_type);
+            break;
+        }
+
+        // Broadcast the transformation
         geometry_msgs::msg::TransformStamped transform;
         transform.header.stamp = node_->now();
-        transform.header.frame_id = "world"; // Parent frame
+        transform.header.frame_id = "world";
         transform.child_frame_id = feedback->marker_name;
         transform.transform.translation.x = feedback->pose.position.x;
         transform.transform.translation.y = feedback->pose.position.y;
@@ -171,6 +208,10 @@ namespace custom_interactive_markers
         transform.transform.rotation = feedback->pose.orientation;
 
         tf_broadcaster_->sendTransform(transform);
+
+        // Update the position of the interactive marker
+        interactive_marker_server_->setPose(feedback->marker_name, feedback->pose);
+        interactive_marker_server_->applyChanges();
     }
 
     void MTRvizUI::publishFrame()
