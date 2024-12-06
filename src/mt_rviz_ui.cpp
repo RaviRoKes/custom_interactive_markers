@@ -41,8 +41,9 @@ namespace custom_interactive_markers
         : rviz_common::Panel(parent),
           node_(std::make_shared<rclcpp::Node>("mt_rviz_ui_node")),
           tf_broadcaster_(std::make_shared<tf2_ros::TransformBroadcaster>(node_)),
-          //// create an interactive marker server
+          // setup an interactive marker server
           interactive_marker_server_(std::make_shared<interactive_markers::InteractiveMarkerServer>("mt_rviz_ui_server", node_))
+
     {
 
         RCLCPP_DEBUG(node_->get_logger(), "Initializing MTRvizUI...");
@@ -82,9 +83,6 @@ namespace custom_interactive_markers
 
         // Set the layout for the panel
         setLayout(layout);
-
-        // // Create the interactive markers grid
-        // createInteractiveMarkers();
     }
 
     void MTRvizUI::onInitialize()
@@ -109,16 +107,10 @@ namespace custom_interactive_markers
                 visualization_msgs::msg::InteractiveMarker int_marker;
                 int_marker.header.frame_id = "world";
                 int_marker.name = marker_name;
-                int_marker.pose.position.x = i * 2.0; // Grid X spacing
-                int_marker.pose.position.y = j * 2.0; // Grid Y spacing
+                int_marker.pose.position.x = i * 1.0; // Grid X spacing
+                int_marker.pose.position.y = j * 1.0; // Grid Y spacing
                 int_marker.pose.position.z = 0.5;     // Place boxes on the floor
-                int_marker.scale = 1.0;
-
-                // Control for interaction
-                visualization_msgs::msg::InteractiveMarkerControl control;
-                control.name = "move_control";
-                control.interaction_mode = visualization_msgs::msg::InteractiveMarkerControl::MOVE_3D;
-                control.always_visible = true;
+                int_marker.scale = 2.0;
 
                 // Create a small box marker
                 visualization_msgs::msg::Marker box_marker;
@@ -126,10 +118,16 @@ namespace custom_interactive_markers
                 box_marker.scale.x = 1.0; // Box size
                 box_marker.scale.y = 1.0;
                 box_marker.scale.z = 1.0;
-                box_marker.color.r = 0.5f;
-                box_marker.color.g = 0.5f;
-                box_marker.color.b = 0.5f;
+                box_marker.color.r = 1.0f;
+                box_marker.color.g = 0.0f;
+                box_marker.color.b = 0.0f;
                 box_marker.color.a = 1.0f;
+
+                // Control for interaction
+                visualization_msgs::msg::InteractiveMarkerControl control;
+                control.name = "move_control";
+                control.interaction_mode = visualization_msgs::msg::InteractiveMarkerControl::MOVE_3D;
+                control.always_visible = true;
 
                 control.markers.push_back(box_marker); // Add the visual marker to the control
 
@@ -167,6 +165,7 @@ namespace custom_interactive_markers
         // Apply changes to the interactive marker server
         RCLCPP_INFO(node_->get_logger(), "Marker inserted, applying changes...");
         interactive_marker_server_->applyChanges();
+        rclcpp::sleep_for(std::chrono::milliseconds(500)); // Add a small delay
         RCLCPP_INFO(node_->get_logger(), "Interactive markers created and applied.");
 
         // Subscribe to the feedback topic to handle interactions
@@ -174,7 +173,7 @@ namespace custom_interactive_markers
             "/mt_rviz_ui_server/feedback", 10, std::bind(&MTRvizUI::processFeedback, this, std::placeholders::_1));
         RCLCPP_INFO(node_->get_logger(), "Feedback subscription created: /mt_rviz_ui_server/feedback");
     }
-
+    // for handing user interaction
     void MTRvizUI::processFeedback(const visualization_msgs::msg::InteractiveMarkerFeedback::SharedPtr feedback)
     {
         RCLCPP_INFO(node_->get_logger(), "Received feedback for marker: %s", feedback->marker_name.c_str());
@@ -219,6 +218,14 @@ namespace custom_interactive_markers
         RCLCPP_INFO(node_->get_logger(), "Publish button pressed.");
         std::string frame_name = frame_name_input_->text().toStdString();
         std::string parent_frame = parent_frame_input_->text().toStdString();
+
+        // Check if the frame name contains spaces
+        if (frame_name.find(' ') != std::string::npos || parent_frame.find(' ') != std::string::npos)
+        {
+            RCLCPP_ERROR(node_->get_logger(), "Frame name or parent frame cannot contain spaces.");
+            QMessageBox::warning(this, "Input Error", "Frame name or parent frame cannot contain spaces.");
+            return;
+        }
 
         // Validate inputs
         if (frame_name.empty() || parent_frame.empty())
@@ -276,10 +283,10 @@ namespace custom_interactive_markers
                 visualization_msgs::msg::InteractiveMarker int_marker;
                 int_marker.header.frame_id = "world";
                 int_marker.name = marker_name;
-                int_marker.pose.position.x = i * 2.0;
-                int_marker.pose.position.y = j * 2.0;
+                int_marker.pose.position.x = i * 1.0;
+                int_marker.pose.position.y = j * 1.0;
                 int_marker.pose.position.z = 0.5;
-                int_marker.scale = 1.0;
+                int_marker.scale = 2.0;
 
                 // Create the cylinder marker
                 visualization_msgs::msg::Marker cylinder_marker = createCylinderMarker(radius, height);
@@ -295,7 +302,6 @@ namespace custom_interactive_markers
                 int_marker.controls.push_back(control);
 
                 // // Remove the old marker if it exists
-                // RCLCPP_INFO(node_->get_logger(), "Inserting marker erased: %s", marker_name.c_str());
                 // interactive_marker_server_->erase(marker_name);
 
                 // Insert the updated interactive marker into the server
@@ -333,9 +339,9 @@ namespace custom_interactive_markers
         cylinder_marker.scale.z = height;
 
         // Set color of the cylinder
-        cylinder_marker.color.r = 1.0f;
+        cylinder_marker.color.r = 0.0f;
         cylinder_marker.color.g = 0.0f;
-        cylinder_marker.color.b = 0.0f;
+        cylinder_marker.color.b = 1.0f;
         cylinder_marker.color.a = 1.0f;
 
         return cylinder_marker;
@@ -343,6 +349,6 @@ namespace custom_interactive_markers
 
 }; // namespace custom_interactive_markers
 
-// Register the RViz plugin
+// Register and load the RViz plugin
 #include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(custom_interactive_markers::MTRvizUI, rviz_common::Panel)

@@ -80,5 +80,3 @@ namespace custom_interactive_markers
 } // namespace custom_interactive_markers
 
 #endif // CUSTOM_INTERACTIVE_MARKERS__MT_RVIZ_UI_HPP_
-
-

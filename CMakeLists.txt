@@ -50,12 +50,6 @@ target_include_directories(mt_rviz_ui PUBLIC
 )
 find_package(interactive_markers REQUIRED)
 
-# target_include_directories(mt_rviz_ui PUBLIC
-#   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-#   $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
-#   $<BUILD_INTERFACE:${interactive_markers_INCLUDE_DIRS}>
-#   /opt/ros/rolling/include
-# )
 
 
 
